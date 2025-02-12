@@ -6,7 +6,7 @@ import {
   Paper, 
   Box, 
   Alert,
-  Modal,
+  Modal as MuiModal,
   Table,
   TableBody,
   TableCell,
@@ -27,6 +27,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
 import axios from 'axios';
+import { alpha } from '@mui/material/styles';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -61,17 +62,66 @@ function App() {
       try {
         setLoading(true);
         const response = await axios.get('/api/scan-results');
-        console.log('API Response:', response.data);
         
-        const formattedData = response.data.map((result, index) => ({
-          id: index,
-          image_name: result.image_name,
-          scan_time: new Date(result.scan_time).toLocaleString(),
-          vulnerabilities: result.vulnerabilities || [],
-          total_vulns: result.vulnerabilities ? result.vulnerabilities.length : 0
-        }));
-        
-        console.log('Formatted Data:', formattedData);
+        // Group by base image name (without tag)
+        const groupedByBase = response.data.reduce((acc, result) => {
+          // Split image name into base and tag
+          const [baseName, tag] = result.image_name.split(':');
+          
+          if (!acc[baseName]) {
+            acc[baseName] = {
+              baseImageName: baseName,
+              tags: {},
+              allVulnerabilities: new Set(),
+              latestScanTime: new Date(0)
+            };
+          }
+
+          // Store scan under appropriate tag
+          if (!acc[baseName].tags[tag]) {
+            acc[baseName].tags[tag] = [];
+          }
+          acc[baseName].tags[tag].push(result);
+
+          // Update latest scan time if newer
+          const scanTime = new Date(result.scan_time);
+          if (scanTime > acc[baseName].latestScanTime) {
+            acc[baseName].latestScanTime = scanTime;
+          }
+
+          return acc;
+        }, {});
+
+        // Format data for DataGrid
+        const formattedData = Object.values(groupedByBase).map((item, index) => {
+          const tagDetails = Object.entries(item.tags).map(([tag, scans]) => {
+            const latestScan = scans.sort((a, b) => 
+              new Date(b.scan_time) - new Date(a.scan_time)
+            )[0];
+            
+            return {
+              tag,
+              scan_time: new Date(latestScan.scan_time).toLocaleString(),
+              vulnerabilities: latestScan.vulnerabilities || [],
+              total_vulns: latestScan.vulnerabilities?.length || 0
+            };
+          });
+
+          // Combine all vulnerabilities from all tags
+          const allVulns = tagDetails.flatMap(t => t.vulnerabilities);
+          const uniqueVulns = [...new Set(allVulns.map(v => JSON.stringify(v)))]
+            .map(v => JSON.parse(v));
+
+          return {
+            id: index,
+            image_name: item.baseImageName,
+            scan_time: item.latestScanTime.toLocaleString(),
+            tags: tagDetails,
+            vulnerabilities: uniqueVulns,
+            total_vulns: uniqueVulns.length,
+          };
+        });
+
         setScanResults(formattedData);
         setError(null);
       } catch (error) {
@@ -84,7 +134,6 @@ function App() {
 
     fetchData();
     const interval = setInterval(fetchData, 30000);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -115,8 +164,24 @@ function App() {
     { 
       field: 'image_name', 
       headerName: 'Image Name', 
-      width: 250,
-      flex: 1 
+      width: 300,
+      flex: 1,
+      renderCell: (params) => (
+        <Box>
+          <Typography>{params.value}</Typography>
+          <Box sx={{ pl: 2 }}>
+            {params.row.tags.map((tag, idx) => (
+              <Chip
+                key={idx}
+                label={`:${tag.tag} (${tag.total_vulns})`}
+                size="small"
+                sx={{ m: 0.5 }}
+                onClick={() => setSelectedVulnerability({...params.row, initialTag: idx})}
+              />
+            ))}
+          </Box>
+        </Box>
+      )
     },
     { 
       field: 'scan_time', 
@@ -165,20 +230,6 @@ function App() {
       }
     }
   ];
-
-  const modalStyle = {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: 'translate(-50%, -50%)',
-    width: '80%',
-    maxHeight: '80vh',
-    bgcolor: 'background.paper',
-    boxShadow: 24,
-    p: 4,
-    overflow: 'auto',
-    borderRadius: 2
-  };
 
   const getFilteredVulnerabilities = () => {
     if (!selectedVulnerability) return [];
@@ -239,6 +290,107 @@ function App() {
       </Table>
     </TableContainer>
   );
+
+  // Modal Component with access to getSeverityColor
+  const Modal = ({ selectedVulnerability, onClose }) => {
+    const [activeTag, setActiveTag] = useState(0);
+
+    const modalStyle = {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: '80%',
+      maxHeight: '80vh',
+      bgcolor: 'background.paper',
+      boxShadow: 24,
+      p: 4,
+      overflow: 'auto',
+      borderRadius: 2
+    };
+
+    return (
+      <MuiModal
+        open={selectedVulnerability !== null}
+        onClose={onClose}
+      >
+        <Box sx={modalStyle}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Vulnerability Details for {selectedVulnerability?.image_name}
+            </Typography>
+            <IconButton onClick={onClose}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+
+          <Tabs 
+            value={activeTag}
+            onChange={(e, newValue) => setActiveTag(newValue)}
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
+          >
+            {selectedVulnerability?.tags.map((tagInfo, index) => (
+              <Tab 
+                key={index} 
+                label={`:${tagInfo.tag}`} 
+              />
+            ))}
+          </Tabs>
+
+          {selectedVulnerability?.tags.map((tagInfo, index) => (
+            <TabPanel value={activeTag} index={index} key={index}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle1">
+                  Scan Time: {tagInfo.scan_time}
+                </Typography>
+                <Typography variant="subtitle1">
+                  Total Vulnerabilities: {tagInfo.total_vulns}
+                </Typography>
+              </Box>
+
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Severity</TableCell>
+                      <TableCell>Package Name</TableCell>
+                      <TableCell>Installed Version</TableCell>
+                      <TableCell>Fixed Version</TableCell>
+                      <TableCell>Description</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {tagInfo.vulnerabilities.map((vuln, idx) => (
+                      <TableRow 
+                        key={idx}
+                        sx={{ 
+                          backgroundColor: alpha(getSeverityColor(vuln.Severity), 0.1)
+                        }}
+                      >
+                        <TableCell>
+                          <Chip 
+                            label={vuln.Severity} 
+                            sx={{
+                              backgroundColor: getSeverityColor(vuln.Severity),
+                              color: 'white'
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>{vuln.PkgName}</TableCell>
+                        <TableCell>{vuln.InstalledVersion}</TableCell>
+                        <TableCell>{vuln.FixedVersion}</TableCell>
+                        <TableCell>{vuln.Description}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </TabPanel>
+          ))}
+        </Box>
+      </MuiModal>
+    );
+  };
 
   return (
     <Container maxWidth="xl">
@@ -320,72 +472,28 @@ function App() {
             rowsPerPageOptions={[10]}
             disableSelectionOnClick
             loading={loading}
+            getRowHeight={() => 'auto'}
             sx={{
               '& .MuiDataGrid-cell': {
                 fontSize: '14px',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                padding: '8px',
               },
+              '& .MuiDataGrid-row': {
+                alignItems: 'flex-start',
+              }
             }}
             onRowClick={(params) => setSelectedVulnerability(params.row)}
           />
         </Paper>
 
         <Modal
-          open={selectedVulnerability !== null}
+          selectedVulnerability={selectedVulnerability}
           onClose={() => setSelectedVulnerability(null)}
-        >
-          <Box sx={modalStyle}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">
-                Vulnerability Details for {selectedVulnerability?.image_name}
-              </Typography>
-              <IconButton onClick={() => setSelectedVulnerability(null)}>
-                <CloseIcon />
-              </IconButton>
-            </Box>
-
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-              <Tabs 
-                value={currentTab} 
-                onChange={(e, newValue) => setCurrentTab(newValue)}
-                variant="scrollable"
-                scrollButtons="auto"
-              >
-                {Object.entries(groupVulnerabilitiesBySeverity()).map(([severity, vulns], index) => (
-                  <Tab 
-                    key={severity}
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Chip
-                          label={`${severity} (${vulns.length})`}
-                          sx={{
-                            backgroundColor: getSeverityColor(severity),
-                            color: 'white',
-                            fontWeight: 'bold'
-                          }}
-                        />
-                      </Box>
-                    }
-                  />
-                ))}
-              </Tabs>
-            </Box>
-
-            {Object.entries(groupVulnerabilitiesBySeverity()).map(([severity, vulns], index) => (
-              <TabPanel key={severity} value={currentTab} index={index}>
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    {vulns.length} {severity.toLowerCase()} severity vulnerabilities found
-                  </Typography>
-                </Box>
-                {renderVulnerabilityTable(vulns)}
-              </TabPanel>
-            ))}
-          </Box>
-        </Modal>
+        />
       </Box>
     </Container>
   );
 }
 
-export default App; 
+export default App;
