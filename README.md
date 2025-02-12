@@ -46,7 +46,7 @@ http://localhost
 Bir Docker imajını taramak için:
 
 ```bash
-trivy image -f json $IMAGE_NAME | jq -c --arg img "$IMAGE_NAME" --arg time "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '{image_name: $img, scan_time: $time, vulnerabilities: [.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[]] | unique}' | curl -X POST -H "Content-Type: application/json" -d @- http://localhost/api/scan-results
+trivy image -f json $IMAGE_NAME | jq -c --arg img "$IMAGE_NAME" --arg time "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '{image_name: $img, scan_time: $time, vulnerabilities: [.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[]] | unique}' | curl -X POST -H "Content-Type: application/json" -d @- http://localhost:8000/api/scan-results
 ```
 
 ## 🏗️ Proje Yapısı
