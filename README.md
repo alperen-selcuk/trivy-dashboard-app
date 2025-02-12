@@ -111,7 +111,7 @@ Bu proje MIT lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICE
 
 ## 👥 Yazarlar
 
-- [Adınız](https://github.com/yourusername)
+- [Hasan Alperen SELCUK](https://github.com/alperen-selcuk)
 
 ## 🙏 Teşekkürler
 
