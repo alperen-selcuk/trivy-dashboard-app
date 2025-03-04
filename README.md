@@ -2,7 +2,8 @@
 
 Trivy Vulnerability Dashboard, Docker imajlarınızın güvenlik taramalarını görselleştiren ve yöneten modern bir web uygulamasıdır. Bu dashboard sayesinde Trivy tarama sonuçlarınızı kolayca görüntüleyebilir, filtreleyebilir ve analiz edebilirsiniz.
 
-![Dashboard Screenshot](docs/dashboard-screenshot.png)
+![image](https://github.com/user-attachments/assets/812369ea-bc90-4e10-95ea-552beda443f7)
+
 
 ## 🌟 Özellikler
 
