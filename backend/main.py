@@ -50,14 +50,7 @@ class User(Base):
     role = Column(String, default="user")  # "admin" or "user"
     created_at = Column(DateTime, default=datetime.now)
 
-class User(Base):
-    __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    password_hash = Column(String)
-    role = Column(String, default="user")  # "admin" or "user"
-    created_at = Column(DateTime, default=datetime.now)
 
 
 # Veritabanı tablosunu oluştur
