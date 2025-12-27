@@ -456,33 +456,36 @@ class CacheService:
 
 # Update endpoints to use cache
 @app.get("/api/scan-results/deduplicated")
+@app.get("/api/scan-results/deduplicated")
 async def get_deduplicated_scan_results():
     """
     Get scan results with deduplication applied.
     Returns only the latest scan for each image version,
     with vulnerabilities deduplicated by CVE code.
-    Cached for 5 minutes.
     """
-    # Try to get from cache
-    cached = CacheService.get("scan_results:deduplicated")
-    if cached:
-        return cached
-    
-    db = SessionLocal()
+    print("DEBUG: get_deduplicated_scan_results called")
     try:
-        results = db.query(ScanResultDB).order_by(ScanResultDB.scan_time.desc()).all()
-        deduplicated = DeduplicationService.get_deduplicated_results(results)
+        # Cache disabled for debugging
+        # cached = CacheService.get("scan_results:deduplicated")
+        # if cached:
+        #     return cached
         
-        # Cache for 5 minutes
-        CacheService.set("scan_results:deduplicated", deduplicated, ttl=300)
-        
-        return deduplicated
+        db = SessionLocal()
+        try:
+            results = db.query(ScanResultDB).order_by(ScanResultDB.scan_time.desc()).all()
+            deduplicated = DeduplicationService.get_deduplicated_results(results)
+            
+            # Cache disabled for debugging
+            # CacheService.set("scan_results:deduplicated", deduplicated, ttl=300)
+            
+            return deduplicated
+        finally:
+            db.close()
+            
     except Exception as e:
         tb_str = traceback.format_exc()
-        print(tb_str) # Still print to logs
+        print(f"ERROR in endpoint: {tb_str}")
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}\nTraceback: {tb_str}")
-    finally:
-        db.close()
 
 # Update POST endpoint to invalidate cache
 @app.post("/api/scan-results")
