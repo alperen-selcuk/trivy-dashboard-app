@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { DataGrid } from '@mui/x-data-grid';
+import { ThemeProvider } from '@mui/material/styles';
 import { 
   Container, 
   Typography, 
@@ -22,12 +24,28 @@ import {
   Stack,
   TextField,
   Tabs,
-  Tab
+  Tab,
+  AppBar,
+  Toolbar,
+  Button,
+  Menu,
+  MenuItem as MenuItemComponent,
+  CircularProgress
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchIcon from '@mui/icons-material/Search';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import LogoutIcon from '@mui/icons-material/Logout';
 import axios from 'axios';
 import { alpha } from '@mui/material/styles';
+import theme from './theme';
+import StatusIndicator from './components/StatusIndicator';
+import ScanDetailModal from './components/ScanDetailModal';
+import LoginPage from './pages/LoginPage';
+import { AuthContext, AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
+import DeleteButton from './components/DeleteButton';
+import VulnerabilitiesTab from './components/VulnerabilitiesTab';
 
 function TabPanel(props) {
   const { children, value, index, ...other } = props;
@@ -47,7 +65,8 @@ function TabPanel(props) {
   );
 }
 
-function App() {
+function DashboardContent() {
+  const { user, logout, isAdmin } = useContext(AuthContext);
   const [scanResults, setScanResults] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,69 +75,25 @@ function App() {
   const [modalSeverityFilter, setModalSeverityFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTab, setCurrentTab] = useState(0);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [detailModalScans, setDetailModalScans] = useState([]);
+  const [detailModalImageName, setDetailModalImageName] = useState('');
+  const [anchorEl, setAnchorEl] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('/api/scan-results');
+        const response = await axios.get('/api/scan-results/deduplicated');
         
-        // Group by base image name (without tag)
-        const groupedByBase = response.data.reduce((acc, result) => {
-          // Split image name into base and tag
-          const [baseName, tag] = result.image_name.split(':');
-          
-          if (!acc[baseName]) {
-            acc[baseName] = {
-              baseImageName: baseName,
-              tags: {},
-              allVulnerabilities: new Set(),
-              latestScanTime: new Date(0)
-            };
-          }
-
-          // Store scan under appropriate tag
-          if (!acc[baseName].tags[tag]) {
-            acc[baseName].tags[tag] = [];
-          }
-          acc[baseName].tags[tag].push(result);
-
-          // Update latest scan time if newer
-          const scanTime = new Date(result.scan_time);
-          if (scanTime > acc[baseName].latestScanTime) {
-            acc[baseName].latestScanTime = scanTime;
-          }
-
-          return acc;
-        }, {});
-
-        // Format data for DataGrid
-        const formattedData = Object.values(groupedByBase).map((item, index) => {
-          const tagDetails = Object.entries(item.tags).map(([tag, scans]) => {
-            const latestScan = scans.sort((a, b) => 
-              new Date(b.scan_time) - new Date(a.scan_time)
-            )[0];
-            
-            return {
-              tag,
-              scan_time: new Date(latestScan.scan_time).toLocaleString(),
-              vulnerabilities: latestScan.vulnerabilities || [],
-              total_vulns: latestScan.vulnerabilities?.length || 0
-            };
-          });
-
-          // Combine all vulnerabilities from all tags
-          const allVulns = tagDetails.flatMap(t => t.vulnerabilities);
-          const uniqueVulns = [...new Set(allVulns.map(v => JSON.stringify(v)))]
-            .map(v => JSON.parse(v));
-
+        const formattedData = response.data.map((item, index) => {
           return {
             id: index,
-            image_name: item.baseImageName,
-            scan_time: item.latestScanTime.toLocaleString(),
-            tags: tagDetails,
-            vulnerabilities: uniqueVulns,
-            total_vulns: uniqueVulns.length,
+            image_name: item.image_name,
+            scan_time: new Date(item.scan_time).toLocaleString(),
+            tags: item.tags,
+            vulnerabilities: item.vulnerabilities,
+            total_vulns: item.total_vulns,
           };
         });
 
@@ -148,6 +123,46 @@ function App() {
     return colors[severity] || colors.UNKNOWN;
   };
 
+  const handleOpenDetailModal = async (imageName) => {
+    try {
+      const response = await axios.get(`/api/images/${imageName}/scans`);
+      setDetailModalScans(response.data);
+      setDetailModalImageName(imageName);
+      setDetailModalOpen(true);
+    } catch (error) {
+      console.error('Error fetching scan details:', error);
+      setError('Failed to load scan details');
+    }
+  };
+
+  const handleCloseDetailModal = () => {
+    setDetailModalOpen(false);
+    setDetailModalScans([]);
+    setDetailModalImageName('');
+  };
+
+  const handleDeleteSuccess = () => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get('/api/scan-results/deduplicated');
+        const formattedData = response.data.map((item, index) => {
+          return {
+            id: index,
+            image_name: item.image_name,
+            scan_time: new Date(item.scan_time).toLocaleString(),
+            tags: item.tags,
+            vulnerabilities: item.vulnerabilities,
+            total_vulns: item.total_vulns,
+          };
+        });
+        setScanResults(formattedData);
+      } catch (error) {
+        console.error('Error refreshing data:', error);
+      }
+    };
+    fetchData();
+  };
+
   const filteredResults = scanResults.map(result => {
     if (severityFilter === 'ALL') {
       return result;
@@ -167,7 +182,10 @@ function App() {
       width: 300,
       flex: 1,
       renderCell: (params) => (
-        <Box>
+        <Box
+          onClick={() => handleOpenDetailModal(params.value)}
+          sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+        >
           <Typography>{params.value}</Typography>
           <Box sx={{ pl: 2 }}>
             {params.row.tags.map((tag, idx) => (
@@ -176,7 +194,10 @@ function App() {
                 label={`:${tag.tag} (${tag.total_vulns})`}
                 size="small"
                 sx={{ m: 0.5 }}
-                onClick={() => setSelectedVulnerability({...params.row, initialTag: idx})}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedVulnerability({...params.row, initialTag: idx});
+                }}
               />
             ))}
           </Box>
@@ -228,70 +249,22 @@ function App() {
           </Box>
         );
       }
-    }
+    },
+    ...(isAdmin ? [{
+      field: 'actions',
+      headerName: 'Actions',
+      width: 100,
+      sortable: false,
+      renderCell: (params) => (
+        <DeleteButton
+          scanId={params.row.id}
+          onDeleteSuccess={handleDeleteSuccess}
+          onError={(err) => setError(err)}
+        />
+      )
+    }] : [])
   ];
 
-  const getFilteredVulnerabilities = () => {
-    if (!selectedVulnerability) return [];
-    
-    return selectedVulnerability.vulnerabilities.filter(vuln => {
-      const matchesSeverity = modalSeverityFilter === 'ALL' || vuln.Severity === modalSeverityFilter;
-      const matchesSearch = searchQuery === '' || 
-        vuln.PkgName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        vuln.Description?.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      return matchesSeverity && matchesSearch;
-    });
-  };
-
-  const groupVulnerabilitiesBySeverity = () => {
-    if (!selectedVulnerability) return {};
-
-    const severityOrder = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
-    const grouped = selectedVulnerability.vulnerabilities.reduce((acc, vuln) => {
-      const severity = vuln.Severity || 'UNKNOWN';
-      if (!acc[severity]) {
-        acc[severity] = [];
-      }
-      acc[severity].push(vuln);
-      return acc;
-    }, {});
-
-    // Sıralı severity'leri döndür
-    return severityOrder.reduce((acc, severity) => {
-      if (grouped[severity]) {
-        acc[severity] = grouped[severity];
-      }
-      return acc;
-    }, {});
-  };
-
-  const renderVulnerabilityTable = (vulnerabilities) => (
-    <TableContainer component={Paper}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Package Name</TableCell>
-            <TableCell>Installed Version</TableCell>
-            <TableCell>Fixed Version</TableCell>
-            <TableCell>Description</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {vulnerabilities.map((vuln, index) => (
-            <TableRow key={index}>
-              <TableCell>{vuln.PkgName}</TableCell>
-              <TableCell>{vuln.InstalledVersion || 'N/A'}</TableCell>
-              <TableCell>{vuln.FixedVersion || 'N/A'}</TableCell>
-              <TableCell>{vuln.Description || 'No description available'}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  );
-
-  // Modal Component with access to getSeverityColor
   const Modal = ({ selectedVulnerability, onClose }) => {
     const [activeTag, setActiveTag] = useState(0);
 
@@ -353,6 +326,7 @@ function App() {
                   <TableHead>
                     <TableRow>
                       <TableCell>Severity</TableCell>
+                      <TableCell>CVE Code</TableCell>
                       <TableCell>Package Name</TableCell>
                       <TableCell>Installed Version</TableCell>
                       <TableCell>Fixed Version</TableCell>
@@ -376,6 +350,20 @@ function App() {
                             }}
                           />
                         </TableCell>
+                        <TableCell>
+                          {vuln.VulnerabilityID ? (
+                            <a 
+                              href={`https://nvd.nist.gov/vuln/detail/${vuln.VulnerabilityID}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#2196F3', textDecoration: 'none' }}
+                            >
+                              {vuln.VulnerabilityID}
+                            </a>
+                          ) : (
+                            'N/A'
+                          )}
+                        </TableCell>
                         <TableCell>{vuln.PkgName}</TableCell>
                         <TableCell>{vuln.InstalledVersion}</TableCell>
                         <TableCell>{vuln.FixedVersion}</TableCell>
@@ -393,106 +381,200 @@ function App() {
   };
 
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          Trivy Scan Results Dashboard
-        </Typography>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            Error: {error}
-          </Alert>
-        )}
-
-        {loading && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Loading scan results...
-          </Alert>
-        )}
-
-        <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>Severity Filter</InputLabel>
-            <Select
-              value={severityFilter}
-              label="Severity Filter"
-              onChange={(e) => setSeverityFilter(e.target.value)}
+    <>
+      <AppBar position="static" sx={{ mb: 3 }}>
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            Trivy Scan Results Dashboard
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="body2">
+              {user?.username} {isAdmin && '(Admin)'}
+            </Typography>
+            <IconButton
+              color="inherit"
+              onClick={(e) => setAnchorEl(e.currentTarget)}
             >
-              <MenuItem value="ALL">All Severities</MenuItem>
-              <MenuItem value="CRITICAL">
-                <Chip 
-                  label="CRITICAL" 
-                  sx={{ 
-                    backgroundColor: getSeverityColor('CRITICAL'),
-                    color: 'white',
-                    fontWeight: 'bold'
-                  }} 
-                />
-              </MenuItem>
-              <MenuItem value="HIGH">
-                <Chip 
-                  label="HIGH" 
-                  sx={{ 
-                    backgroundColor: getSeverityColor('HIGH'),
-                    color: 'white',
-                    fontWeight: 'bold'
-                  }} 
-                />
-              </MenuItem>
-              <MenuItem value="MEDIUM">
-                <Chip 
-                  label="MEDIUM" 
-                  sx={{ 
-                    backgroundColor: getSeverityColor('MEDIUM'),
-                    color: 'white',
-                    fontWeight: 'bold'
-                  }} 
-                />
-              </MenuItem>
-              <MenuItem value="LOW">
-                <Chip 
-                  label="LOW" 
-                  sx={{ 
-                    backgroundColor: getSeverityColor('LOW'),
-                    color: 'white',
-                    fontWeight: 'bold'
-                  }} 
-                />
-              </MenuItem>
-            </Select>
-          </FormControl>
-        </Stack>
+              <AccountCircleIcon />
+            </IconButton>
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={() => setAnchorEl(null)}
+            >
+              <MenuItemComponent
+                onClick={() => {
+                  logout();
+                  setAnchorEl(null);
+                }}
+              >
+                <LogoutIcon sx={{ mr: 1 }} />
+                Logout
+              </MenuItemComponent>
+            </Menu>
+          </Box>
+        </Toolbar>
+      </AppBar>
 
-        <Paper elevation={3} sx={{ height: 600, width: '100%' }}>
-          <DataGrid
-            rows={filteredResults}
-            columns={columns}
-            pageSize={10}
-            rowsPerPageOptions={[10]}
-            disableSelectionOnClick
-            loading={loading}
-            getRowHeight={() => 'auto'}
-            sx={{
-              '& .MuiDataGrid-cell': {
-                fontSize: '14px',
-                cursor: 'pointer',
-                padding: '8px',
-              },
-              '& .MuiDataGrid-row': {
-                alignItems: 'flex-start',
-              }
-            }}
-            onRowClick={(params) => setSelectedVulnerability(params.row)}
-          />
-        </Paper>
+      <Container maxWidth="xl">
+        <Box sx={{ mt: 2, mb: 4 }}>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Error: {error}
+            </Alert>
+          )}
 
-        <Modal
-          selectedVulnerability={selectedVulnerability}
-          onClose={() => setSelectedVulnerability(null)}
-        />
+          {loading && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Loading scan results...
+            </Alert>
+          )}
+
+          <Tabs 
+            value={currentTab}
+            onChange={(e, newValue) => setCurrentTab(newValue)}
+            sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}
+          >
+            <Tab label="Dashboard" />
+            <Tab label="Vulnerabilities" />
+          </Tabs>
+
+          <TabPanel value={currentTab} index={0}>
+            <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+              <FormControl sx={{ minWidth: 200 }}>
+                <InputLabel>Severity Filter</InputLabel>
+                <Select
+                  value={severityFilter}
+                  label="Severity Filter"
+                  onChange={(e) => setSeverityFilter(e.target.value)}
+                >
+                  <MenuItem value="ALL">All Severities</MenuItem>
+                  <MenuItem value="CRITICAL">
+                    <Chip 
+                      label="CRITICAL" 
+                      sx={{ 
+                        backgroundColor: getSeverityColor('CRITICAL'),
+                        color: 'white',
+                        fontWeight: 'bold'
+                      }} 
+                    />
+                  </MenuItem>
+                  <MenuItem value="HIGH">
+                    <Chip 
+                      label="HIGH" 
+                      sx={{ 
+                        backgroundColor: getSeverityColor('HIGH'),
+                        color: 'white',
+                        fontWeight: 'bold'
+                      }} 
+                    />
+                  </MenuItem>
+                  <MenuItem value="MEDIUM">
+                    <Chip 
+                      label="MEDIUM" 
+                      sx={{ 
+                        backgroundColor: getSeverityColor('MEDIUM'),
+                        color: 'white',
+                        fontWeight: 'bold'
+                      }} 
+                    />
+                  </MenuItem>
+                  <MenuItem value="LOW">
+                    <Chip 
+                      label="LOW" 
+                      sx={{ 
+                        backgroundColor: getSeverityColor('LOW'),
+                        color: 'white',
+                        fontWeight: 'bold'
+                      }} 
+                    />
+                  </MenuItem>
+                </Select>
+              </FormControl>
+            </Stack>
+
+            <Paper elevation={3} sx={{ height: 600, width: '100%' }}>
+              <DataGrid
+                rows={filteredResults}
+                columns={columns}
+                pageSize={10}
+                rowsPerPageOptions={[10]}
+                disableSelectionOnClick
+                loading={loading}
+                getRowHeight={() => 'auto'}
+                sx={{
+                  '& .MuiDataGrid-cell': {
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    padding: '8px',
+                  },
+                  '& .MuiDataGrid-row': {
+                    alignItems: 'flex-start',
+                  }
+                }}
+                onRowClick={(params) => setSelectedVulnerability(params.row)}
+              />
+            </Paper>
+
+            <Modal
+              selectedVulnerability={selectedVulnerability}
+              onClose={() => setSelectedVulnerability(null)}
+            />
+
+            <ScanDetailModal
+              open={detailModalOpen}
+              imageName={detailModalImageName}
+              scans={detailModalScans}
+              onClose={handleCloseDetailModal}
+              getSeverityColor={getSeverityColor}
+            />
+          </TabPanel>
+
+          <TabPanel value={currentTab} index={1}>
+            <VulnerabilitiesTab getSeverityColor={getSeverityColor} />
+          </TabPanel>
+        </Box>
+      </Container>
+    </>
+  );
+}
+
+function AppContent() {
+  const { loading, isAuthenticated } = useContext(AuthContext);
+
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <CircularProgress />
       </Box>
-    </Container>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <DashboardContent />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider theme={theme}>
+      <Router>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </Router>
+    </ThemeProvider>
   );
 }
 
