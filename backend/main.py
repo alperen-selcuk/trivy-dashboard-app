@@ -170,35 +170,45 @@ class DeduplicationService:
             # Get latest scans for each version
             latest_by_version = DeduplicationService.get_latest_scans_by_version(image_scans)
             
-            # Collect all vulnerabilities from latest scans
-            all_vulns = []
-            for scan in latest_by_version.values():
-                if scan.vulnerabilities:
-                    all_vulns.extend(scan.vulnerabilities)
-            
-            # Deduplicate vulnerabilities
-            unique_vulns = DeduplicationService.deduplicate_vulnerabilities(all_vulns)
-            
-            # Get latest scan time
-            latest_scan_time = max(
-                (scan.scan_time for scan in latest_by_version.values()),
-                default=datetime.now()
+            # Find the SINGLE latest scan across ALL versions
+            if not latest_by_version:
+                continue
+                
+            overall_latest_scan = max(
+                latest_by_version.values(),
+                key=lambda s: s.scan_time
             )
+            
+            # For the main view, we only show vulnerabilities from the LATEST scan
+            # This satisfies the user requirement "en son taramayı baz alarak sayısını göstersin"
+            main_vulnerabilities = overall_latest_scan.vulnerabilities or []
+            unique_main_vulns = DeduplicationService.deduplicate_vulnerabilities(main_vulnerabilities)
+            
+            # Mark simple active/inactive status for versions
+            # Active = The scan matches the overall_latest_scan (or we could define active as 'latest of its version')
+            # User requirement: "eğer en yeni tarama varsa eskilerini turuncu inactive en son taramayı active olarak göstersin"
+            # This usually means comparing within a version history, OR comparing across versions?
+            # Let's persist the 'latest_by_version' logic for the sub-list (so each version has one entry),
+            # but we can flag which one is the "Head" (Overall Latest).
+            
+            latest_scan_time = overall_latest_scan.scan_time
             
             results.append({
                 'image_name': image_name,
                 'scan_time': latest_scan_time,
+                'current_version': overall_latest_scan.image_name.split(':')[1] if ':' in overall_latest_scan.image_name else 'latest',
                 'tags': [
                     {
                         'tag': scan.image_name.split(':')[1] if ':' in scan.image_name else 'latest',
                         'scan_time': scan.scan_time.isoformat(),
                         'vulnerabilities': scan.vulnerabilities or [],
-                        'total_vulns': len(scan.vulnerabilities or [])
+                        'total_vulns': len(scan.vulnerabilities or []),
+                        'is_latest_global': (scan.id == overall_latest_scan.id)
                     }
                     for scan in latest_by_version.values()
                 ],
-                'vulnerabilities': unique_vulns,
-                'total_vulns': len(unique_vulns)
+                'vulnerabilities': unique_main_vulns,
+                'total_vulns': len(unique_main_vulns)
             })
         
         return results
@@ -225,10 +235,12 @@ class StatusService:
         version = parts[1] if len(parts) > 1 else 'latest'
         
         # Find all scans for this version
-        same_version_scans = [
-            s for s in all_scans 
-            if s.image_name.split(':')[1] if ':' in s.image_name else 'latest' == version
-        ]
+        same_version_scans = []
+        for s in all_scans:
+            s_parts = s.image_name.split(':')
+            s_version = s_parts[1] if len(s_parts) > 1 else 'latest'
+            if s_version == version:
+                same_version_scans.append(s)
         
         # Find the latest scan for this version
         if same_version_scans:

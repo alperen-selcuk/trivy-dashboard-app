@@ -2,11 +2,11 @@ import React, { useState, useEffect, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { DataGrid } from '@mui/x-data-grid';
 import { ThemeProvider } from '@mui/material/styles';
-import { 
-  Container, 
-  Typography, 
-  Paper, 
-  Box, 
+import {
+  Container,
+  Typography,
+  Paper,
+  Box,
   Alert,
   Modal as MuiModal,
   Table,
@@ -70,7 +70,8 @@ function DashboardContent() {
   const [scanResults, setScanResults] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedVulnerability, setSelectedVulnerability] = useState(null);
+  // const [selectedVulnerability, setSelectedVulnerability] = useState(null); // Removed, using DetailModal
+
   const [severityFilter, setSeverityFilter] = useState('ALL');
   const [modalSeverityFilter, setModalSeverityFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,11 +86,12 @@ function DashboardContent() {
       try {
         setLoading(true);
         const response = await axios.get('/api/scan-results/deduplicated');
-        
+
         const formattedData = response.data.map((item, index) => {
           return {
             id: index,
             image_name: item.image_name,
+            current_version: item.current_version,
             scan_time: new Date(item.scan_time).toLocaleString(),
             tags: item.tags,
             vulnerabilities: item.vulnerabilities,
@@ -114,16 +116,22 @@ function DashboardContent() {
 
   const getSeverityColor = (severity) => {
     const colors = {
-      CRITICAL: '#7B1FA2',
-      HIGH: '#C62828',
-      MEDIUM: '#EF6C00',
-      LOW: '#2E7D32',
-      UNKNOWN: '#757575'
+      CRITICAL: '#ef4444',
+      HIGH: '#f97316',
+      MEDIUM: '#f59e0b',
+      LOW: '#10b981',
+      UNKNOWN: '#6b7280'
     };
     return colors[severity] || colors.UNKNOWN;
   };
 
   const handleOpenDetailModal = async (imageName) => {
+    // We already have the tags in the row data, which contains the history.
+    // However, the backend logic for /api/images/{image_name}/scans might need to be used if we want *all* history, 
+    // but the 'deduplicated' endpoint returns 'tags' which contains the latest scan per version.
+    // The user wants "history" (active/inactive).
+    // The /api/images/{name}/scans endpoint returns ALL scans (including inactive).
+    // So we should keep fetching detailed history.
     try {
       const response = await axios.get(`/api/images/${imageName}/scans`);
       setDetailModalScans(response.data);
@@ -149,6 +157,7 @@ function DashboardContent() {
           return {
             id: index,
             image_name: item.image_name,
+            current_version: item.current_version,
             scan_time: new Date(item.scan_time).toLocaleString(),
             tags: item.tags,
             vulnerabilities: item.vulnerabilities,
@@ -167,7 +176,7 @@ function DashboardContent() {
     if (severityFilter === 'ALL') {
       return result;
     }
-    
+
     return {
       ...result,
       vulnerabilities: result.vulnerabilities.filter(vuln => vuln.Severity === severityFilter),
@@ -176,27 +185,32 @@ function DashboardContent() {
   }).filter(result => result.total_vulns > 0);
 
   const columns = [
-    { 
-      field: 'image_name', 
-      headerName: 'Image Name', 
-      width: 300,
-      flex: 1,
+    {
+      field: 'image_name',
+      headerName: 'Image Name',
+      width: 250,
+      flex: 1.5,
+      resizable: true,
       renderCell: (params) => (
         <Box
           onClick={() => handleOpenDetailModal(params.value)}
-          sx={{ cursor: 'pointer', '&:hover': { textDecoration: 'underline' } }}
+          sx={{ cursor: 'pointer', display: 'flex', flexDirection: 'column' }}
         >
-          <Typography>{params.value}</Typography>
-          <Box sx={{ pl: 2 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'primary.main' }}>
+            {params.value}
+          </Typography>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', mt: 0.5 }}>
             {params.row.tags.map((tag, idx) => (
               <Chip
                 key={idx}
-                label={`:${tag.tag} (${tag.total_vulns})`}
+                label={`:${tag.tag}`}
                 size="small"
-                sx={{ m: 0.5 }}
+                variant={tag.is_latest_global ? "filled" : "outlined"}
+                color={tag.is_latest_global ? "primary" : "default"}
+                sx={{ mr: 0.5, mb: 0.5, height: 20, fontSize: '0.7rem' }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedVulnerability({...params.row, initialTag: idx});
+                  handleOpenDetailModal(params.value);
                 }}
               />
             ))}
@@ -204,48 +218,82 @@ function DashboardContent() {
         </Box>
       )
     },
-    { 
-      field: 'scan_time', 
-      headerName: 'Scan Time', 
+    {
+      field: 'current_version',
+      headerName: 'Version',
+      width: 120,
+      resizable: true,
+      renderCell: (params) => (
+        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+          {params.value}
+        </Typography>
+      )
+    },
+    {
+      field: 'scan_time',
+      headerName: 'Latest Scan',
       width: 200,
-      flex: 1 
+      flex: 1,
+      resizable: true,
+      renderCell: (params) => (
+        <Typography variant="body2" color="text.secondary">
+          {params.value}
+        </Typography>
+      )
     },
     {
       field: 'total_vulns',
-      headerName: 'Total Vulnerabilities',
-      width: 180,
-      flex: 1
+      headerName: 'Vulns',
+      width: 120,
+      resizable: true,
+      renderCell: (params) => (
+        <Chip
+          label={params.value}
+          color={params.value > 0 ? "error" : "success"}
+          size="small"
+          sx={{ fontWeight: 'bold' }}
+        />
+      )
     },
     {
       field: 'vulnerabilities',
-      headerName: 'Vulnerability Details',
+      headerName: 'Severity Breakdown',
       width: 400,
       flex: 2,
+      resizable: true,
       renderCell: (params) => {
         const vulns = params.value;
         if (!vulns || vulns.length === 0) {
-          return <div>No vulnerabilities found</div>;
+          return <Chip label="Safe" color="success" size="small" variant="outlined" />;
         }
-        
+
         const severityCounts = vulns.reduce((acc, vuln) => {
           const severity = vuln.Severity || 'UNKNOWN';
           acc[severity] = (acc[severity] || 0) + 1;
           return acc;
         }, {});
 
+        // Order: CRITICAL, HIGH, MEDIUM, LOW
+        const order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN'];
+
         return (
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {Object.entries(severityCounts).map(([severity, count]) => (
-              <Chip
-                key={severity}
-                label={`${severity}: ${count}`}
-                sx={{
-                  backgroundColor: getSeverityColor(severity),
-                  color: 'white',
-                  fontWeight: 'bold'
-                }}
-              />
-            ))}
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+            {order.map(severity => {
+              if (!severityCounts[severity]) return null;
+              return (
+                <Chip
+                  key={severity}
+                  label={`${severity.substring(0, 1)}: ${severityCounts[severity]}`}
+                  size="small"
+                  sx={{
+                    backgroundColor: getSeverityColor(severity),
+                    color: 'white',
+                    fontWeight: 'bold',
+                    minWidth: '40px'
+                  }}
+                />
+              );
+            })}
           </Box>
         );
       }
@@ -255,9 +303,10 @@ function DashboardContent() {
       headerName: 'Actions',
       width: 100,
       sortable: false,
+      resizable: true,
       renderCell: (params) => (
         <DeleteButton
-          scanId={params.row.id}
+          scanId={params.row.tags.find(t => t.is_latest_global)?.id || params.row.id} // Best guess for ID
           onDeleteSuccess={handleDeleteSuccess}
           onError={(err) => setError(err)}
         />
@@ -265,120 +314,7 @@ function DashboardContent() {
     }] : [])
   ];
 
-  const Modal = ({ selectedVulnerability, onClose }) => {
-    const [activeTag, setActiveTag] = useState(0);
 
-    const modalStyle = {
-      position: 'absolute',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: '80%',
-      maxHeight: '80vh',
-      bgcolor: 'background.paper',
-      boxShadow: 24,
-      p: 4,
-      overflow: 'auto',
-      borderRadius: 2
-    };
-
-    return (
-      <MuiModal
-        open={selectedVulnerability !== null}
-        onClose={onClose}
-      >
-        <Box sx={modalStyle}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">
-              Vulnerability Details for {selectedVulnerability?.image_name}
-            </Typography>
-            <IconButton onClick={onClose}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-
-          <Tabs 
-            value={activeTag}
-            onChange={(e, newValue) => setActiveTag(newValue)}
-            sx={{ borderBottom: 1, borderColor: 'divider' }}
-          >
-            {selectedVulnerability?.tags.map((tagInfo, index) => (
-              <Tab 
-                key={index} 
-                label={`:${tagInfo.tag}`} 
-              />
-            ))}
-          </Tabs>
-
-          {selectedVulnerability?.tags.map((tagInfo, index) => (
-            <TabPanel value={activeTag} index={index} key={index}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle1">
-                  Scan Time: {tagInfo.scan_time}
-                </Typography>
-                <Typography variant="subtitle1">
-                  Total Vulnerabilities: {tagInfo.total_vulns}
-                </Typography>
-              </Box>
-
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Severity</TableCell>
-                      <TableCell>CVE Code</TableCell>
-                      <TableCell>Package Name</TableCell>
-                      <TableCell>Installed Version</TableCell>
-                      <TableCell>Fixed Version</TableCell>
-                      <TableCell>Description</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {tagInfo.vulnerabilities.map((vuln, idx) => (
-                      <TableRow 
-                        key={idx}
-                        sx={{ 
-                          backgroundColor: alpha(getSeverityColor(vuln.Severity), 0.1)
-                        }}
-                      >
-                        <TableCell>
-                          <Chip 
-                            label={vuln.Severity} 
-                            sx={{
-                              backgroundColor: getSeverityColor(vuln.Severity),
-                              color: 'white'
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {vuln.VulnerabilityID ? (
-                            <a 
-                              href={`https://nvd.nist.gov/vuln/detail/${vuln.VulnerabilityID}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              style={{ color: '#2196F3', textDecoration: 'none' }}
-                            >
-                              {vuln.VulnerabilityID}
-                            </a>
-                          ) : (
-                            'N/A'
-                          )}
-                        </TableCell>
-                        <TableCell>{vuln.PkgName}</TableCell>
-                        <TableCell>{vuln.InstalledVersion}</TableCell>
-                        <TableCell>{vuln.FixedVersion}</TableCell>
-                        <TableCell>{vuln.Description}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </TabPanel>
-          ))}
-        </Box>
-      </MuiModal>
-    );
-  };
 
   return (
     <>
@@ -430,7 +366,7 @@ function DashboardContent() {
             </Alert>
           )}
 
-          <Tabs 
+          <Tabs
             value={currentTab}
             onChange={(e, newValue) => setCurrentTab(newValue)}
             sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}
@@ -450,76 +386,67 @@ function DashboardContent() {
                 >
                   <MenuItem value="ALL">All Severities</MenuItem>
                   <MenuItem value="CRITICAL">
-                    <Chip 
-                      label="CRITICAL" 
-                      sx={{ 
+                    <Chip
+                      label="CRITICAL"
+                      sx={{
                         backgroundColor: getSeverityColor('CRITICAL'),
                         color: 'white',
                         fontWeight: 'bold'
-                      }} 
+                      }}
                     />
                   </MenuItem>
                   <MenuItem value="HIGH">
-                    <Chip 
-                      label="HIGH" 
-                      sx={{ 
+                    <Chip
+                      label="HIGH"
+                      sx={{
                         backgroundColor: getSeverityColor('HIGH'),
                         color: 'white',
                         fontWeight: 'bold'
-                      }} 
+                      }}
                     />
                   </MenuItem>
                   <MenuItem value="MEDIUM">
-                    <Chip 
-                      label="MEDIUM" 
-                      sx={{ 
+                    <Chip
+                      label="MEDIUM"
+                      sx={{
                         backgroundColor: getSeverityColor('MEDIUM'),
                         color: 'white',
                         fontWeight: 'bold'
-                      }} 
+                      }}
                     />
                   </MenuItem>
                   <MenuItem value="LOW">
-                    <Chip 
-                      label="LOW" 
-                      sx={{ 
+                    <Chip
+                      label="LOW"
+                      sx={{
                         backgroundColor: getSeverityColor('LOW'),
                         color: 'white',
                         fontWeight: 'bold'
-                      }} 
+                      }}
                     />
                   </MenuItem>
                 </Select>
               </FormControl>
             </Stack>
 
-            <Paper elevation={3} sx={{ height: 600, width: '100%' }}>
+            <Paper elevation={0} sx={{ height: 600, width: '100%', borderRadius: 3, overflow: 'hidden' }}>
               <DataGrid
                 rows={filteredResults}
                 columns={columns}
                 pageSize={10}
-                rowsPerPageOptions={[10]}
+                rowsPerPageOptions={[10, 25, 50]}
                 disableSelectionOnClick
                 loading={loading}
                 getRowHeight={() => 'auto'}
                 sx={{
-                  '& .MuiDataGrid-cell': {
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    padding: '8px',
-                  },
+                  border: 'none',
                   '& .MuiDataGrid-row': {
-                    alignItems: 'flex-start',
+                    cursor: 'pointer'
                   }
                 }}
-                onRowClick={(params) => setSelectedVulnerability(params.row)}
+                onRowClick={(params) => handleOpenDetailModal(params.row.image_name)}
               />
             </Paper>
-
-            <Modal
-              selectedVulnerability={selectedVulnerability}
-              onClose={() => setSelectedVulnerability(null)}
-            />
 
             <ScanDetailModal
               open={detailModalOpen}

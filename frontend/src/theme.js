@@ -2,266 +2,148 @@ import { createTheme } from '@mui/material/styles';
 
 /**
  * Custom Material-UI Theme Configuration
- * Implements vibrant colors, improved visual hierarchy, and modern design
+ * Implements vibrant colors, premium visual hierarchy, and modern design
  */
 
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#2196F3',
-      light: '#64B5F6',
-      dark: '#1976D2',
+      main: '#6366f1', // Indigo
+      light: '#818cf8',
+      dark: '#4f46e5',
+      contrastText: '#ffffff',
     },
     secondary: {
-      main: '#FF9800',
-      light: '#FFB74D',
-      dark: '#F57C00',
+      main: '#ec4899', // Pink
+      light: '#f472b6',
+      dark: '#db2777',
+      contrastText: '#ffffff',
     },
     success: {
-      main: '#4CAF50',
-      light: '#81C784',
-      dark: '#388E3C',
+      main: '#10b981', // Emerald
+      light: '#34d399',
+      dark: '#059669',
     },
     error: {
-      main: '#C62828',
-      light: '#EF5350',
-      dark: '#B71C1C',
+      main: '#ef4444', // Red
+      light: '#f87171',
+      dark: '#dc2626',
     },
     warning: {
-      main: '#EF6C00',
-      light: '#FFB74D',
-      dark: '#E65100',
+      main: '#f59e0b', // Amber
+      light: '#fbbf24',
+      dark: '#d97706',
     },
     info: {
-      main: '#2196F3',
-      light: '#64B5F6',
-      dark: '#1976D2',
+      main: '#3b82f6', // Blue
+      light: '#60a5fa',
+      dark: '#2563eb',
     },
     background: {
-      default: '#F5F5F5',
-      paper: '#FFFFFF',
+      default: '#f3f4f6', // Cool Gray
+      paper: '#ffffff',
+    },
+    text: {
+      primary: '#111827', // Gray 900
+      secondary: '#6b7280', // Gray 500
     },
   },
   typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Plus Jakarta Sans", "Inter", "Roboto", sans-serif',
     h1: {
-      fontSize: '2.5rem',
-      fontWeight: 700,
-      letterSpacing: '-0.015625em',
+      fontWeight: 800,
+      letterSpacing: '-0.025em',
+      background: 'linear-gradient(45deg, #4f46e5 30%, #ec4899 90%)',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
     },
     h2: {
-      fontSize: '2rem',
-      fontWeight: 700,
-      letterSpacing: '-0.0083333333em',
-    },
-    h3: {
-      fontSize: '1.75rem',
-      fontWeight: 700,
-      letterSpacing: '0em',
+      fontWeight: 800,
+      letterSpacing: '-0.025em',
     },
     h4: {
-      fontSize: '1.5rem',
       fontWeight: 700,
-      letterSpacing: '0.0125em',
-    },
-    h5: {
-      fontSize: '1.25rem',
-      fontWeight: 700,
-      letterSpacing: '0em',
     },
     h6: {
-      fontSize: '1rem',
       fontWeight: 700,
-      letterSpacing: '0.0125em',
-    },
-    subtitle1: {
-      fontSize: '1rem',
-      fontWeight: 500,
-      letterSpacing: '0.009375em',
-    },
-    subtitle2: {
-      fontSize: '0.875rem',
-      fontWeight: 500,
-      letterSpacing: '0.0071428571em',
-    },
-    body1: {
-      fontSize: '1rem',
-      fontWeight: 400,
-      letterSpacing: '0.03125em',
-      lineHeight: 1.5,
-    },
-    body2: {
-      fontSize: '0.875rem',
-      fontWeight: 400,
-      letterSpacing: '0.0178571429em',
-      lineHeight: 1.5,
     },
     button: {
-      fontSize: '0.875rem',
       fontWeight: 600,
-      letterSpacing: '0.0892857143em',
-      textTransform: 'uppercase',
-    },
-    caption: {
-      fontSize: '0.75rem',
-      fontWeight: 400,
-      letterSpacing: '0.0333333333em',
+      textTransform: 'none',
     },
   },
-  shape: {
-    borderRadius: 8,
-  },
-  spacing: 8,
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: 'none',
-          fontWeight: 600,
-          borderRadius: 8,
-          padding: '10px 24px',
-          transition: 'all 0.3s ease',
-          '&:hover': {
-            transform: 'translateY(-2px)',
-            boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
-          },
-        },
-        contained: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
           borderRadius: 12,
-          transition: 'all 0.3s ease',
+          padding: '10px 24px',
+          boxShadow: 'none',
           '&:hover': {
-            boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)',
+            transform: 'translateY(-1px)',
           },
         },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: {
-          fontWeight: 600,
-          borderRadius: 6,
-          transition: 'all 0.2s ease',
-          '&:hover': {
-            transform: 'scale(1.05)',
-          },
+        containedPrimary: {
+          background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
         },
+        containedSecondary: {
+          background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+        }
       },
     },
     MuiPaper: {
       styleOverrides: {
         root: {
-          backgroundImage: 'none',
+          borderRadius: 16,
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
         },
         elevation1: {
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        },
-        elevation2: {
-          boxShadow: '0 4px 8px rgba(0,0,0,0.15)',
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
         },
         elevation3: {
-          boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
-        },
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        }
       },
     },
-    MuiTableCell: {
+    MuiChip: {
       styleOverrides: {
-        head: {
-          fontWeight: 700,
-          backgroundColor: '#F5F5F5',
-          borderBottom: '2px solid #E0E0E0',
-        },
-        body: {
-          padding: '12px 16px',
-          borderBottom: '1px solid #E0E0E0',
+        root: {
+          borderRadius: 8,
+          fontWeight: 600,
         },
       },
     },
     MuiDataGrid: {
       styleOverrides: {
         root: {
-          borderRadius: 8,
-          border: '1px solid #E0E0E0',
+          border: 'none',
+          backgroundColor: '#ffffff',
+          '& .MuiDataGrid-columnHeaders': {
+            backgroundColor: '#f9fafb',
+            color: '#374151',
+            fontSize: '0.875rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          },
           '& .MuiDataGrid-cell': {
-            borderBottom: '1px solid #E0E0E0',
-            padding: '12px 16px',
+            borderBottom: '1px solid #f3f4f6',
           },
-          '& .MuiDataGrid-columnHeader': {
-            backgroundColor: '#F5F5F5',
-            fontWeight: 700,
-            borderBottom: '2px solid #E0E0E0',
+          '& .MuiDataGrid-row:hover': {
+            backgroundColor: '#f9fafb',
           },
-          '& .MuiDataGrid-row': {
-            transition: 'all 0.2s ease',
-            '&:hover': {
-              backgroundColor: '#FAFAFA',
-            },
-          },
-        },
-      },
-    },
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            borderRadius: 8,
-            transition: 'all 0.2s ease',
-            '&:hover': {
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            },
-          },
-        },
-      },
-    },
-    MuiSelect: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
         },
       },
     },
   },
 });
 
-/**
- * Severity Color Mapping
- * Consistent colors for vulnerability severity levels
- */
 export const severityColors = {
-  CRITICAL: '#7B1FA2',  // Purple
-  HIGH: '#C62828',      // Red
-  MEDIUM: '#EF6C00',    // Orange
-  LOW: '#2E7D32',       // Green
-  UNKNOWN: '#757575',   // Gray
-};
-
-/**
- * Status Color Mapping
- * Colors for scan status indicators
- */
-export const statusColors = {
-  active: '#4CAF50',    // Bright Green
-  inactive: '#FF9800',  // Orange
-  unknown: '#9E9E9E',   // Gray
-};
-
-/**
- * Spacing Constants
- * Consistent spacing throughout the application
- */
-export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
+  CRITICAL: '#ef4444',
+  HIGH: '#f97316',
+  MEDIUM: '#f59e0b',
+  LOW: '#10b981',
+  UNKNOWN: '#6b7280',
 };
 
 export default theme;
