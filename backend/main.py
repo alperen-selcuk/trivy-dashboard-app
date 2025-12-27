@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, JSON, M
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+import traceback
 from collections import defaultdict
 from passlib.context import CryptContext
 from jose import JWTError, jwt
@@ -475,6 +476,7 @@ async def get_deduplicated_scan_results():
         
         return deduplicated
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
