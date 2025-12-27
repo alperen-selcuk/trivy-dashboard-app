@@ -156,6 +156,8 @@ class DeduplicationService:
         # Group by base image name
         by_image = defaultdict(list)
         for scan in scans:
+            if not scan.image_name:
+                continue
             base_name = scan.image_name.split(':')[0]
             by_image[base_name].append(scan)
         
@@ -476,8 +478,9 @@ async def get_deduplicated_scan_results():
         
         return deduplicated
     except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        tb_str = traceback.format_exc()
+        print(tb_str) # Still print to logs
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}\nTraceback: {tb_str}")
     finally:
         db.close()
 
