@@ -19,7 +19,9 @@ http {
 
         location /api {
             client_max_body_size 50M;  # Bu lokasyon için de maksimum boyutu ayarlıyoruz
-            proxy_pass ${BACKEND_URL};
+            resolver 127.0.0.11 ipv6=off;
+            set $upstream_target ${BACKEND_URL};
+            proxy_pass $upstream_target;
             proxy_ssl_server_name on;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
