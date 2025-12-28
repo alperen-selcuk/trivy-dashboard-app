@@ -378,16 +378,19 @@ async def get_deduplicated_scan_results():
         db.close()
 
 
-@app.get("/api/images/{image_name}/scans")
+@app.get("/api/images/scans")
 async def get_image_scans_with_status(image_name: str):
     """
     Get all scans for a specific image with status information.
     Returns scans sorted by scan_time (newest first).
     Each scan includes active/inactive status.
+    
+    Query parameter:
+        image_name: Full image name (e.g., registry.io/repo/image)
     """
     db = SessionLocal()
     try:
-        # Get all scans for this image
+        # Get all scans for this image (base name without tag)
         scans = db.query(ScanResultDB).filter(
             ScanResultDB.image_name.like(f"{image_name}:%")
         ).order_by(ScanResultDB.scan_time.desc()).all()

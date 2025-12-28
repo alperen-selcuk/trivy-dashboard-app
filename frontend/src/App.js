@@ -127,15 +127,16 @@ function DashboardContent() {
 
   const handleOpenDetailModal = async (imageName) => {
     // We already have the tags in the row data, which contains the history.
-    // However, the backend logic for /api/images/{image_name}/scans might need to be used if we want *all* history, 
+    // However, the backend logic for /api/images/scans might need to be used if we want *all* history, 
     // but the 'deduplicated' endpoint returns 'tags' which contains the latest scan per version.
     // The user wants "history" (active/inactive).
-    // The /api/images/{name}/scans endpoint returns ALL scans (including inactive).
+    // The /api/images/scans endpoint returns ALL scans (including inactive).
     // So we should keep fetching detailed history.
     try {
-      // URL encode the image name to handle slashes in registry paths
-      const encodedImageName = encodeURIComponent(imageName);
-      const response = await axios.get(`/api/images/${encodedImageName}/scans`);
+      // Use query parameter to handle image names with slashes
+      const response = await axios.get(`/api/images/scans`, {
+        params: { image_name: imageName }
+      });
       setDetailModalScans(response.data);
       setDetailModalImageName(imageName);
       setDetailModalOpen(true);
