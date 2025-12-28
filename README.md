@@ -88,14 +88,20 @@ docker-compose up --build
 
 ### Erişim
 
+**Geliştirme Ortamı:**
 - **Frontend**: http://localhost:8001
 - **Backend API**: http://localhost:8002
 - **API Dokümantasyonu**: http://localhost:8002/docs
 
+**Production Ortamı:**
+- **Frontend**: https://trivy-ui.setur.software
+- **Backend API**: https://trivy-exporter.setur.software
+- **API Dokümantasyonu**: https://trivy-exporter.setur.software/docs
+
 ### Giriş Bilgileri
 
-- **Kullanıcı Adı**: `trivy`
-- **Şifre**: `trivy`
+- **Kullanıcı Adı**: `admin`
+- **Şifre**: `admin12345`
 
 ## 📋 API Endpoints
 
@@ -170,10 +176,35 @@ trivy-dashboard-app/
 └── LICENSE                    # MIT Lisansı
 ```
 
-## 🧪 Test Verisi Ekleme
+## 🧪 Tarama Yapma ve Sonuç Gönderme
+
+### 1. Trivy ile Image Tarama
 
 ```bash
+# Image'ı tara ve JSON formatında kaydet
+trivy image --format json --output scan-result.json nginx:latest
+```
+
+### 2. Tarama Sonucunu Backend'e Gönderme
+
+**Geliştirme Ortamı:**
+```bash
 curl -X POST http://localhost:8002/api/scan-results \
+  -H "Content-Type: application/json" \
+  -d @scan-result.json
+```
+
+**Production Ortamı:**
+```bash
+curl -X POST https://trivy-exporter.setur.software/api/scan-results \
+  -H "Content-Type: application/json" \
+  -d @scan-result.json
+```
+
+### 3. Manuel Test Verisi Ekleme
+
+```bash
+curl -X POST https://trivy-exporter.setur.software/api/scan-results \
   -H "Content-Type: application/json" \
   -d '{
     "image_name": "myapp:v1.0",
@@ -189,6 +220,37 @@ curl -X POST http://localhost:8002/api/scan-results \
       }
     ]
   }'
+```
+
+### 4. Otomatik Tarama Script Örneği
+
+```bash
+#!/bin/bash
+# scan-and-upload.sh
+
+IMAGE_NAME=$1
+BACKEND_URL="https://trivy-exporter.setur.software"
+
+# Image'ı tara
+echo "Taranıyor: $IMAGE_NAME"
+trivy image --format json --output /tmp/scan-result.json $IMAGE_NAME
+
+# Sonucu backend'e gönder
+echo "Sonuç gönderiliyor..."
+curl -X POST $BACKEND_URL/api/scan-results \
+  -H "Content-Type: application/json" \
+  -d @/tmp/scan-result.json
+
+# Geçici dosyayı temizle
+rm /tmp/scan-result.json
+
+echo "Tarama tamamlandı!"
+```
+
+**Kullanım:**
+```bash
+chmod +x scan-and-upload.sh
+./scan-and-upload.sh nginx:latest
 ```
 
 ## 🔐 Güvenlik

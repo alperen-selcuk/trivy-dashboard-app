@@ -133,7 +133,9 @@ function DashboardContent() {
     // The /api/images/{name}/scans endpoint returns ALL scans (including inactive).
     // So we should keep fetching detailed history.
     try {
-      const response = await axios.get(`/api/images/${imageName}/scans`);
+      // URL encode the image name to handle slashes in registry paths
+      const encodedImageName = encodeURIComponent(imageName);
+      const response = await axios.get(`/api/images/${encodedImageName}/scans`);
       setDetailModalScans(response.data);
       setDetailModalImageName(imageName);
       setDetailModalOpen(true);
