@@ -485,18 +485,18 @@ async def get_deduplicated_scan_results():
     """
     print("DEBUG: get_deduplicated_scan_results called")
     try:
-        # Cache disabled for debugging
-        # cached = CacheService.get("scan_results:deduplicated")
-        # if cached:
-        #     return cached
+        # Try to get from cache
+        cached = CacheService.get("scan_results:deduplicated")
+        if cached:
+            return cached
         
         db = SessionLocal()
         try:
             results = db.query(ScanResultDB).order_by(ScanResultDB.scan_time.desc()).all()
             deduplicated = DeduplicationService.get_deduplicated_results(results)
             
-            # Cache disabled for debugging
-            # CacheService.set("scan_results:deduplicated", deduplicated, ttl=300)
+            # Cache for 5 minutes
+            CacheService.set("scan_results:deduplicated", deduplicated, ttl=300)
             
             return deduplicated
         finally:
