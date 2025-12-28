@@ -18,28 +18,18 @@ http {
         }
 
         location /api {
+            client_max_body_size 50M;
             resolver 127.0.0.11 ipv6=off;
             set $upstream_target ${BACKEND_URL};
-            # Append request_uri because variable usage prevents auto-append
-            # We strip /api prefix if backend doesn't want it? 
-            # No, backend has /api endpoints (e.g. /api/scan-results).
-            # But wait, location /api matches /api. 
-            # If we pass $request_uri, it includes /api. 
-            # Backend expects /api. So this is correct.
-            # CAUTION: if $upstream_target has trailing slash, it might break.
-            # Assuming BACKEND_URL has no trailing slash.
             
-            # Using $1 from regex location might be better but location is /api.
-            # Simple rewrite approach:
-            
-            proxy_pass $upstream_target$request_uri;
-            
-            proxy_ssl_server_name on;
-            proxy_ssl_verify off;
+            proxy_pass $upstream_target;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection 'upgrade';
-            # proxy_set_header Host $host;  <-- REMOVED to allow upstream host
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
             proxy_cache_bypass $http_upgrade;
             
             # CORS ayarları
