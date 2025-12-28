@@ -587,16 +587,16 @@ class AuthService:
     @staticmethod
     def create_admin_account(db):
         """Create default admin account if it doesn't exist"""
-        existing_admin = db.query(User).filter(User.username == "trivy").first()
+        existing_admin = db.query(User).filter(User.username == "admin").first()
         if not existing_admin:
             admin_user = User(
-                username="trivy",
-                password_hash=AuthService.hash_password("trivy"),
+                username="admin",
+                password_hash=AuthService.hash_password("admin12345"),
                 role="admin"
             )
             db.add(admin_user)
             db.commit()
-            print("✓ Admin account created: trivy/trivy")
+            print("✓ Admin account created: admin/admin12345")
             return admin_user
         return existing_admin
 
